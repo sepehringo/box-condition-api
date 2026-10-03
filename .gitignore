@@ -1,0 +1,82 @@
+# Python virtual environment
+venv/
+.venv/
+
+# PyCharm
+.idea/
+
+# VS Code
+.vscode/
+
+# macOS
+.DS_Store
+*.swp
+*.swo
+
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# YOLO/ML specific
+runs/
+*.pt
+!models/best.pt
+results/**/*.jpg
+results/**/*.png
+results/*/
+*.onnx
+
+# Data
+data/
+datasets_extracted/
+*.zip
+
+# Deployment secrets and local credentials
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+id_rsa*
+id_ed25519*
+
+# Jupyter
+.ipynb_checkpoints/
+*.ipynb_checkpoints
+
+# IDE
+*.sublime-project
+*.sublime-workspace
+
+# OS
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.bak
+*.swp

@@ -1,0 +1,48 @@
+# YOLO Box Condition Detection - Training Configuration
+# macOS M5 Pro Setup
+
+# Model Configuration
+model:
+  name: "yolov8s"  # nano, small, medium, large (s = small, good for M5 Pro)
+  pretrained: true
+  device: "mps"  # Apple Metal Performance Shaders
+
+# Training Parameters
+training:
+  epochs: 50
+  batch_size: 16
+  learning_rate: 0.001
+  patience: 20  # Early stopping
+  optimizer: "SGD"  # or Adam
+  weight_decay: 0.0005
+
+# Data Augmentation
+augmentation:
+  hsv_h: 0.015  # HSV-Hue augmentation (0-1)
+  hsv_s: 0.7    # HSV-Saturation augmentation (0-1)
+  hsv_v: 0.4    # HSV-Value augmentation (0-1)
+  degrees: 10   # Rotation degrees
+  translate: 0.1  # Translation (0-1)
+  scale: 0.5    # Scale (0-1)
+  flipud: 0.5   # Flip upside-down probability
+  fliplr: 0.5   # Flip left-right probability
+  mosaic: 1.0   # Mosaic augmentation probability
+
+# Validation
+validation:
+  conf_threshold: 0.5
+  iou_threshold: 0.6
+
+# Output
+output:
+  results_dir: "./results"
+  models_dir: "./models"
+  logs_dir: "./logs"
+  save_best: true
+  save_interval: 5
+
+# Misc
+misc:
+  seed: 42
+  verbose: true
+  workers: 4

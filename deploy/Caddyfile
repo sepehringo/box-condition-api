@@ -1,0 +1,7 @@
+{$DEMO_DOMAIN} {
+    reverse_proxy api:8000 {
+        transport http {
+            response_header_timeout 240s
+        }
+    }
+}

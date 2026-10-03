@@ -1,0 +1,9 @@
+**
+!Dockerfile
+!requirements.txt
+!requirements-api.txt
+!inference_core.py
+!box_api/
+!box_api/*.py
+!models/
+!models/best.pt

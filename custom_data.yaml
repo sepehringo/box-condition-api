@@ -1,0 +1,8 @@
+names:
+- damaged
+- intact
+nc: 2
+path: data/processed
+test: test/images
+train: train/images
+val: valid/images

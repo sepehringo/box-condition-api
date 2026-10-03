@@ -1,0 +1,55 @@
+name: box-condition-api
+services:
+  api:
+    image: box-condition-api:${BOX_IMAGE_TAG:-local}
+    platform: linux/amd64
+    build: .
+    restart: unless-stopped
+    stop_grace_period: 180s
+    mem_limit: 3g
+    cpus: 2
+    environment:
+      BOX_API_KEY: ${BOX_API_KEY:?Set BOX_API_KEY in .env}
+      BOX_REQUIRE_API_KEY: "true"
+      BOX_DEVICE: cpu
+      BOX_WORKERS: "2"
+      BOX_TORCH_THREADS: "1"
+      BOX_MAX_REQUESTS: "32"
+      BOX_QUEUE_TIMEOUT: "60"
+      BOX_PROCESSING_TIMEOUT: "60"
+    expose:
+      - "8000"
+    healthcheck:
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/ready', timeout=4)"]
+      interval: 15s
+      timeout: 5s
+      start_period: 180s
+      retries: 3
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+  caddy:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    environment:
+      DEMO_DOMAIN: ${DEMO_DOMAIN:?Set DEMO_DOMAIN in .env}
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - ./deploy/Caddyfile:/etc/caddy/Caddyfile:ro
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      api:
+        condition: service_healthy
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+volumes:
+  caddy_data:
+  caddy_config:

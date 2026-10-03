@@ -1,0 +1,44 @@
+{
+  "request_id": "990e858420634b30b541aa92373cd1c4",
+  "results": [
+    {
+      "index": 0,
+      "filename": "box-1.jpg",
+      "width": 512,
+      "height": 512,
+      "predictions": []
+    },
+    {
+      "index": 1,
+      "filename": "box-2.jpg",
+      "width": 512,
+      "height": 512,
+      "predictions": [
+        {
+          "id": 0,
+          "class_id": 0,
+          "confidence": 0.811,
+          "box": {
+            "x1": 0.0,
+            "y1": 83.56,
+            "x2": 512.0,
+            "y2": 512.0
+          },
+          "class": "damaged"
+        },
+        {
+          "id": 1,
+          "class_id": 1,
+          "confidence": 0.808,
+          "box": {
+            "x1": 0.0,
+            "y1": 63.36,
+            "x2": 512.0,
+            "y2": 512.0
+          },
+          "class": "intact"
+        }
+      ]
+    }
+  ]
+}

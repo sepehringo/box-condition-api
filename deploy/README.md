@@ -144,6 +144,12 @@ Use literal `KEY=value` lines without shell expansion. The demo key stays on the
 VPS and is read privately by the host-side smoke test; it is never put into the
 release archive or GitHub repository. Give reviewers the key privately.
 
+CI/CD SSH connections originate from GitHub-hosted runners. For this demo,
+configure SSH for key authentication only and allow its port publicly in the
+Hetzner firewall. A rule allowing only your personal IP blocks the workflow.
+Verify both your administrative SSH key and the dedicated deployment key work
+before disabling password authentication or changing firewall rules.
+
 ### GitHub configuration
 
 After the first successful image publication, open the account's **Packages**

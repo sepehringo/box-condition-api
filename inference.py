@@ -33,7 +33,7 @@ logging.basicConfig(
 logger = logging.getLogger(__name__)
 
 
-def load_model(model_path="models/best.pt", device="mps"):
+def load_model(model_path="models/best.pt", device="cpu"):
     """Load trained YOLO model"""
     if not Path(model_path).exists():
         logger.error(f"❌ Model not found: {model_path}")
@@ -173,7 +173,7 @@ def main():
     parser.add_argument(
         '--device',
         type=str,
-        default='mps',
+        default='cpu',
         choices=['mps', 'cpu'],
         help='Inference device'
     )

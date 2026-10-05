@@ -1,14 +1,18 @@
-name: API checks
+name: API CI/CD
 on:
   push:
   pull_request:
+  workflow_dispatch:
 permissions:
   contents: read
 jobs:
   tests:
     runs-on: ubuntu-latest
+    timeout-minutes: 15
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - uses: actions/setup-python@v5
         with:
           python-version: "3.11"
@@ -17,26 +21,34 @@ jobs:
         run: |
           python -m pip install torch==2.1.0 torchvision==0.16.0 --index-url https://download.pytorch.org/whl/cpu
           python -m pip install -r requirements-dev.txt
-      - name: Unit and API tests
+      - name: Unit, API, worker termination and rollback tests
         run: python -m unittest discover -s tests -v
       - name: Real model with two spawned CPU workers
         env:
           BOX_RUN_MODEL_TESTS: "1"
         run: python -m unittest tests.test_model_integration -v
+      - name: Validate deployment shell
+        run: bash -n deploy/remote.sh
   container:
+    needs: tests
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Build Linux CPU image
-        run: docker build --platform linux/amd64 -t box-condition-api:ci .
-      - name: Verify Compose and Caddy configuration
+        run: docker build --platform linux/amd64 --label org.opencontainers.image.source=https://github.com/sepehringo/box-condition-api --label org.opencontainers.image.revision="$GITHUB_SHA" -t box-condition-api:ci .
+      - name: Verify local and production Compose and Caddy configuration
         env:
           BOX_API_KEY: ci-only-test-key-01234567890123456789
           DEMO_DOMAIN: api.example.com
+          BOX_API_IMAGE: ghcr.io/sepehringo/box-condition-api@sha256:1111111111111111111111111111111111111111111111111111111111111111
         run: |
           docker compose config --quiet
+          docker compose -f compose.yaml -f compose.production.yaml config --quiet
           docker run --rm -e DEMO_DOMAIN -v "$PWD/deploy/Caddyfile:/etc/caddy/Caddyfile:ro" caddy:2-alpine caddy validate --config /etc/caddy/Caddyfile
-      - name: Authenticated container smoke test
+      - name: Authenticated container smoke test and restart
         env:
           BOX_API_KEY: ci-only-test-key-01234567890123456789
         run: |
@@ -45,3 +57,79 @@ jobs:
           python scripts/smoke_api.py --url http://127.0.0.1:8000
           docker restart box-api
           python scripts/smoke_api.py --url http://127.0.0.1:8000
+      - name: Preserve the tested image and matching release files
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        run: |
+          mkdir -p .deployment-artifacts
+          docker save box-condition-api:ci | gzip > .deployment-artifacts/image.tar.gz
+          tar -czf .deployment-artifacts/release.tar.gz compose.yaml compose.production.yaml deploy/Caddyfile deploy/release.py scripts/smoke_api.py samples
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          name: tested-image-${{ github.sha }}
+          path: .deployment-artifacts/image.tar.gz
+          compression-level: 0
+          retention-days: 1
+      - uses: actions/upload-artifact@v4
+        if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+        with:
+          name: release-files-${{ github.sha }}
+          path: .deployment-artifacts/release.tar.gz
+          compression-level: 0
+          retention-days: 1
+  publish:
+    needs: container
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: read
+      packages: write
+    outputs:
+      image: ${{ steps.publish.outputs.image }}
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: tested-image-${{ github.sha }}
+          path: .deployment-artifacts
+      - name: Publish the exact tested image
+        id: publish
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          set -euo pipefail
+          gunzip -c .deployment-artifacts/image.tar.gz | docker load
+          printf '%s' "$GH_TOKEN" | docker login ghcr.io -u "$GITHUB_ACTOR" --password-stdin
+          image="ghcr.io/sepehringo/box-condition-api:$GITHUB_SHA"
+          docker tag box-condition-api:ci "$image"
+          docker push "$image"
+          digest=$(docker image inspect "$image" --format '{{index .RepoDigests 0}}')
+          [[ "$digest" =~ ^ghcr.io/sepehringo/box-condition-api@sha256:[0-9a-f]{64}$ ]]
+          printf 'image=%s\n' "$digest" >> "$GITHUB_OUTPUT"
+  deploy:
+    needs: publish
+    if: vars.DEPLOY_ENABLED == 'true' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    concurrency:
+      group: production-deployment
+      cancel-in-progress: false
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files-${{ github.sha }}
+          path: .deployment-artifacts
+      - name: Deploy, verify HTTPS and roll back on failure
+        env:
+          BOX_API_IMAGE: ${{ needs.publish.outputs.image }}
+          DEPLOY_SSH_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
+          DEPLOY_KNOWN_HOSTS: ${{ secrets.DEPLOY_KNOWN_HOSTS }}
+          DEPLOY_HOST: ${{ vars.DEPLOY_HOST }}
+          DEPLOY_USER: ${{ vars.DEPLOY_USER }}
+          DEPLOY_PORT: ${{ vars.DEPLOY_PORT }}
+          DEMO_DOMAIN: ${{ vars.DEMO_DOMAIN }}
+        run: bash deploy/remote.sh

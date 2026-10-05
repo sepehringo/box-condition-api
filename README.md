@@ -10,6 +10,19 @@ demo key, then upload the two images in [samples/](samples/README.md).
 The trained `models/best.pt` is included so cloning the repository is enough to
 run inference. See [deployment instructions](deploy/README.md) for Hetzner.
 
+## CI/CD
+
+GitHub Actions tests the API, real CPU model, worker termination, and rollback
+behavior, then builds and smoke-tests a Linux container. Successful `main`
+builds publish that exact image to `ghcr.io/sepehringo/box-condition-api`.
+With production setup enabled, the workflow deploys its immutable digest over
+SSH, verifies HTTPS predictions, and restores the previous release on failure.
+Pull requests run checks without publishing or deploying.
+
+Live deployment is disabled until the server, domain, pinned SSH keys, and
+repository variable `DEPLOY_ENABLED=true` are configured. See
+[CI/CD setup](deploy/README.md#automatic-cicd-deployment) for the one-time steps.
+
 ## Try it
 
 ```sh
@@ -182,6 +195,7 @@ Environment variables are read when the app is imported.
 | BOX_PROCESSING_TIMEOUT | 60 | Seconds from first task dispatch to batch completion |
 | BOX_UPLOAD_TIMEOUT | 60 | Upload body read deadline after admission |
 | BOX_STARTUP_TIMEOUT | 180 | Model loading/warmup deadline |
+| BOX_SHUTDOWN_TIMEOUT | 30 | Worker drain deadline during service shutdown |
 | BOX_TEMP_ROOT | system temporary directory | Existing directory for uploads |
 | BOX_API_KEY | unset locally | Shared X-API-Key; unset disables local authentication |
 | BOX_REQUIRE_API_KEY | false locally; true in Docker | Fail startup without a non-placeholder key of at least 32 characters |

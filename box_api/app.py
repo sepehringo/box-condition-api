@@ -13,6 +13,7 @@ from starlette.exceptions import HTTPException
 from starlette.responses import JSONResponse, RedirectResponse
 
 from box_api.admission import AdmissionGate
+from box_api.async_utils import complete_io
 from box_api.auth import validate_api_key
 from box_api.errors import ApiError, InvalidImage
 from box_api.middleware import AdmissionMiddleware
@@ -49,16 +50,6 @@ class ImageResult(BaseModel):
 class PredictionResponse(BaseModel):
     request_id: str
     results: list[ImageResult]
-
-
-async def complete_io(function, *args):
-    """Finish disk operations before cancellation can remove their files."""
-    task = asyncio.create_task(asyncio.to_thread(function, *args))
-    try:
-        return await asyncio.shield(task)
-    except asyncio.CancelledError:
-        await task
-        raise
 
 
 async def save_uploads(form, settings, directory):

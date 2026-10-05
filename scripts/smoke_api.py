@@ -11,10 +11,10 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 
 
-def request(url, path, data=None, headers=None):
+def request(url, path, data=None, headers=None, timeout=240):
     req = urllib.request.Request(url.rstrip("/") + path, data=data, headers=headers or {})
     try:
-        with urllib.request.urlopen(req, timeout=240) as response:
+        with urllib.request.urlopen(req, timeout=timeout) as response:
             return response.status, response.read()
     except urllib.error.HTTPError as response:
         return response.code, response.read()
@@ -29,7 +29,7 @@ def main():
     deadline = time.monotonic() + 240
     while True:
         try:
-            status, _ = request(args.url, "/ready")
+            status, _ = request(args.url, "/ready", timeout=min(5, max(0.1, deadline - time.monotonic())))
             if status == 200:
                 break
         except (OSError, urllib.error.URLError):
@@ -38,11 +38,11 @@ def main():
             raise RuntimeError("API did not become ready")
         time.sleep(1)
     for path in ("/health", "/docs", "/openapi.json"):
-        status, _ = request(args.url, path)
+        status, _ = request(args.url, path, timeout=10)
         assert status == 200, (path, status)
     for supplied in (None, "incorrect-key"):
         status, _ = request(args.url, "/v1/predict", b"unparsed-body",
-                            {"X-API-Key": supplied} if supplied else {})
+                            {"X-API-Key": supplied} if supplied else {}, timeout=10)
         assert status == 401, status
     paths = [ROOT / "samples" / name for name in ("box-1.jpg", "box-2.jpg")]
     boundary = "box-condition-smoke-boundary"

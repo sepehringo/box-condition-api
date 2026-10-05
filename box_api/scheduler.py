@@ -4,11 +4,12 @@ import logging
 import multiprocessing
 import time
 from collections import deque
-from concurrent.futures import ProcessPoolExecutor
 from concurrent.futures.process import BrokenProcessPool
 from dataclasses import dataclass, field
 
 from box_api.errors import ApiError, InvalidImage
+from box_api.async_utils import finish_task
+from box_api.pool import InferencePool
 from box_api.worker import infer_image, initialize_worker, worker_ready
 
 logger = logging.getLogger("uvicorn.error.box_api")
@@ -46,12 +47,13 @@ class Scheduler:
         self.queue = deque()
         self.tasks = set()
         self.cleanups = set()
+        self._close_task = None
 
     async def start(self):
         if self.executor is None:
             context = multiprocessing.get_context("spawn")
             barrier = context.Barrier(self.settings.workers)
-            self.executor = ProcessPoolExecutor(
+            self.executor = InferencePool(
                 max_workers=self.settings.workers, mp_context=context,
                 initializer=initialize_worker, initargs=(self.settings, barrier),
             )
@@ -65,7 +67,7 @@ class Scheduler:
                     asyncio.gather(*probes), self.settings.startup_timeout
                 )
             except BaseException:
-                await self.close()
+                await self.close(force=True)
                 raise
         self.ready = True
 
@@ -184,14 +186,28 @@ class Scheduler:
         finally:
             job.lease.release()
 
-    async def close(self):
+    async def close(self, force=False):
+        if self._close_task is None:
+            self._close_task = asyncio.create_task(self._close(force))
+        await finish_task(self._close_task)
+
+    async def _close(self, force):
         self.ready = False
         self.closing = True
         for job in tuple(self.jobs):
             self.cancel(job, ApiError(500, "Inference service is shutting down"))
+        if self.tasks and not force:
+            _, pending = await asyncio.wait(tuple(self.tasks), timeout=self.settings.shutdown_timeout)
+            force = bool(pending)
+        if force and isinstance(self.executor, InferencePool):
+            logger.warning("Stopping inference workers after startup failure or shutdown deadline")
+            await asyncio.to_thread(self.executor.abort)
         if self.tasks:
+            # Killing workers resolves their executor futures. Never cancel them
+            # before worker termination, because their files must stay alive.
             await asyncio.gather(*tuple(self.tasks), return_exceptions=True)
         if self.cleanups:
             await asyncio.gather(*tuple(self.cleanups), return_exceptions=True)
         if self.executor is not None:
-            await asyncio.to_thread(self.executor.shutdown, wait=True, cancel_futures=True)
+            if not force or not isinstance(self.executor, InferencePool):
+                await asyncio.to_thread(self.executor.shutdown, wait=True, cancel_futures=True)

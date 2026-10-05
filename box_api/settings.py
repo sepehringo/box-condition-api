@@ -1,5 +1,6 @@
 """Environment configuration for the inference service."""
 import os
+import math
 from dataclasses import dataclass, field
 from pathlib import Path
 
@@ -21,6 +22,7 @@ class Settings:
     processing_timeout: float = 60.0
     upload_timeout: float = 60.0
     startup_timeout: float = 180.0
+    shutdown_timeout: float = 30.0
     temp_root: str | None = None
     api_key: str | None = field(default=None, repr=False)
     require_api_key: bool = False
@@ -38,9 +40,11 @@ class Settings:
             "workers", "torch_threads", "max_requests", "max_images",
             "max_file_bytes", "max_body_bytes", "max_pixels",
             "queue_timeout", "processing_timeout", "upload_timeout", "startup_timeout",
+            "shutdown_timeout",
         ):
-            if getattr(self, name) <= 0:
-                raise ValueError(f"{name} must be positive")
+            value = getattr(self, name)
+            if value <= 0 or not math.isfinite(value):
+                raise ValueError(f"{name} must be finite and positive")
         if self.device not in ("cpu", "mps"):
             raise ValueError("device must be cpu or mps")
         if self.device == "mps" and self.workers != 1:

@@ -17,6 +17,7 @@ services:
       BOX_MAX_REQUESTS: "32"
       BOX_QUEUE_TIMEOUT: "60"
       BOX_PROCESSING_TIMEOUT: "60"
+      BOX_SHUTDOWN_TIMEOUT: "30"
     expose:
       - "8000"
     healthcheck:

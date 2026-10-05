@@ -1,0 +1,5 @@
+# Docker Compose 2.24.4+ supports !reset. The VPS pulls the CI-tested image.
+services:
+  api:
+    image: ${BOX_API_IMAGE:?Set the tested image digest}
+    build: !reset null
